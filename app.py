@@ -89,9 +89,9 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
 def pantalla_login():
     st.title("🔐 Casa de Apuestas El Gordo - Web VIP")
     
-    # --- AQUÍ AGREGAMOS LA IMAGEN EN EL LOGIN ---
+    # --- AQUÍ LA IMAGEN ES LA MITAD DE GRANDE (width=100) ---
     try:
-        st.image("image_6.jpg", use_container_width=True)
+        st.image("image_6.jpg", width=100)
     except Exception as e:
         st.warning("La imagen 'image_6.jpg' no se encontró. Asegúrate de subirla a tu carpeta.")
     
@@ -127,9 +127,9 @@ else:
     # --- MENÚ LATERAL (SIDEBAR) ---
     st.sidebar.title("🎲 El Gordo Picks")
     
-    # --- AQUÍ AGREGAMOS LA IMAGEN EN EL SIDEBAR ---
+    # --- AQUÍ LA IMAGEN ES LA MITAD DE GRANDE (width=75) ---
     try:
-        st.sidebar.image("image_6.jpg", use_container_width=True)
+        st.sidebar.image("image_6.jpg", width=75)
     except Exception:
         pass # Silenciamos el error aquí para no saturar si ya se mostró en el login
         
