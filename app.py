@@ -4,6 +4,7 @@ import numpy as np
 from scipy.stats import poisson
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+import os
 
 st.set_page_config(page_title="Casa de Apuestas El Gordo", page_icon="⚽", layout="wide")
 
@@ -50,7 +51,6 @@ def entrenar_y_cargar(url):
     
     df_stats = pd.DataFrame(list(equipos_stats.values()))
     
-    # Entrenamiento ML (Sklearn)
     X_train, y_train = [], []
     for _, row in raw.iterrows():
         if row['HG'] > row['AG']: y = 1
@@ -79,7 +79,12 @@ def obtener_sede_stats(raw_matches, equipo):
 
 # --- INTERFAZ ---
 st.title("CASA DE APUESTAS EL GORDO")
-st.write("---")
+
+# Intentar cargar la imagen
+if os.path.exists("image_6.png"):
+    st.image("image_6.png", width=150)
+else:
+    st.caption("(Sube image_6.png para ver la mascota)")
 
 liga_sel = st.selectbox("Selecciona el torneo:", list(LIGAS.keys()))
 
@@ -92,7 +97,6 @@ try:
     with col_input2: vis = st.selectbox("Visita", [e for e in equipos_lista if e != loc])
     
     if st.button("ANALIZAR PARTIDO", use_container_width=True):
-        # Cálculos Base
         d_l = df[df['Squad'] == loc].iloc[0]
         d_v = df[df['Squad'] == vis].iloc[0]
         sede_l = obtener_sede_stats(raw_matches, loc)
@@ -108,17 +112,14 @@ try:
         ajuste = (d_l['Elo'] - d_v['Elo']) / 1800
         l_l *= (1 + ajuste); l_v *= (1 - ajuste)
         
-        # Matriz Poisson
         max_g = 10
         matriz = np.outer(poisson.pmf(range(max_g), l_l), poisson.pmf(range(max_g), l_v))
         matriz /= matriz.sum()
         
-        # Probabilidades Poisson
         p_loc_poi = np.sum(np.tril(matriz, -1)) * 100
         p_emp_poi = np.sum(np.diag(matriz)) * 100
         p_vis_poi = np.sum(np.triu(matriz, 1)) * 100
         
-        # Probabilidades Machine Learning (Sklearn)
         ventaja_l = (d_l['Elo'] + 100) / max(d_v['Elo'], 1)
         X_new = scaler.transform([[1 / ventaja_l, ventaja_l]])
         probs_ml = ml_model.predict_proba(X_new)[0]
@@ -127,29 +128,25 @@ try:
         p_loc_ml = (probs_ml[clases.index(1)] * 100) if 1 in clases else 0
         p_vis_ml = (probs_ml[clases.index(2)] * 100) if 2 in clases else 0
         
-        # Goles Over/Under
         goles = np.add.outer(range(max_g), range(max_g))
         def calc_ou(n): return np.sum(matriz[goles > n]) * 100
         
-        # --- MOSTRAR RESULTADOS ---
+        # --- SALIDA DE DATOS SIN RAYAS ---
         st.header(f"{loc} vs {vis}")
         
-        # 1. PROBABILIDADES 1X2 (ML vs POISSON)
-        st.subheader("--- PROBABILIDADES 1X2 ---")
-        col_ml, col_poi = st.columns(2)
-        with col_ml:
-            st.write("**SKLEARN ML (IA)**")
+        st.subheader("PROBABILIDADES 1X2")
+        c_ml, c_poi = st.columns(2)
+        with c_ml:
+            st.markdown("**SKLEARN ML (IA)**")
             st.write(f"Local: {p_loc_ml:.1f}% | Empate: {p_emp_ml:.1f}% | Visita: {p_vis_ml:.1f}%")
-        with col_poi:
-            st.write("**POISSON TRADICIONAL**")
+        with c_poi:
+            st.markdown("**POISSON TRADICIONAL**")
             st.write(f"Local: {p_loc_poi:.1f}% | Empate: {p_emp_poi:.1f}% | Visita: {p_vis_poi:.1f}%")
 
-        # 2. GOLES ESPERADOS
-        st.subheader("--- GOLES ESPERADOS (xG) ---")
-        st.info(f"{loc}: {l_l:.2f} | {vis}: {l_v:.2f}")
+        st.subheader("GOLES ESPERADOS (xG)")
+        st.write(f"{loc}: {l_l:.2f} | {vis}: {l_v:.2f}")
 
-        # 3. OVER / UNDER
-        st.subheader("--- OVER / UNDER ---")
+        st.subheader("OVER / UNDER")
         o_cols = st.columns(5)
         for i, val in enumerate([0.5, 1.5, 2.5, 3.5, 4.5]):
             p_over = calc_ou(val)
@@ -159,19 +156,16 @@ try:
         btts = np.sum(matriz[1:, 1:]) * 100
         st.write(f"**Ambos Equipos Anotan (BTTS):** {btts:.1f}%")
 
-        # 4. TOP 5 MARCADORES
-        st.subheader("--- TOP 5 MARCADORES ---")
+        st.subheader("TOP 5 MARCADORES")
         m_list = []
         for i in range(max_g):
             for j in range(max_g): m_list.append((matriz[i,j], i, j))
         m_list.sort(reverse=True)
-        
         for i in range(5):
             p_m, gl, gv = m_list[i]
-            st.write(f"{i+1}. {loc} **{gl} - {gv}** {vis} ({p_m*100:.1f}%)")
+            st.write(f"{i+1}. {loc} {gl} - {gv} {vis} ({p_m*100:.1f}%)")
 
-        # 5. RECOMENDACIONES FINALES
-        st.subheader("--- RECOMENDACIONES CASA DE APUESTAS EL GORDO ---")
+        st.subheader("RECOMENDACIONES CASA DE APUESTAS EL GORDO")
         favorito = None
         if p_loc_ml >= 45:
             st.success("MoneyLine: Gana Local (Confianza Sklearn)")
@@ -186,11 +180,9 @@ try:
         if calc_ou(2.5) >= 55: st.info("Goles: Over 2.5 tiene valor")
         if btts >= 58: st.info("Ambos Equipos Anotan: SI")
 
-        # Combinadas
-        st.subheader("--- COMBINADAS DE ALTO VALOR ---")
+        st.subheader("COMBINADAS DE ALTO VALOR")
         u35 = 100 - calc_ou(3.5)
         o15 = calc_ou(1.5)
-        
         if favorito == "Local" and u35 >= 75: st.write("Combo: Local Gana + Under 3.5 Goles")
         if favorito == "Visita" and u35 >= 75: st.write("Combo: Visita Gana + Under 3.5 Goles")
         if favorito in ["Local", "Local_DC"] and o15 >= 75: st.write("Combo Seguro: Local o Empate + Over 1.5 Goles")
