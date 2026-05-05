@@ -2,163 +2,159 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import poisson
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
-st.set_page_config(page_title="EasyBet", page_icon="⚽")
+st.set_page_config(page_title="Casa de Apuestas El Gordo", page_icon="⚽")
 
-# Cacheamos los datos para no descargar el CSV cada vez que tocas un botón
-@st.cache_data
-def cargar_datos_online():
-    url = "https://www.football-data.co.uk/new/MEX.csv"
+# --- CONFIGURACIÓN Y DATOS ---
+LIGAS = {
+    "Mexico (Liga MX)": "https://www.football-data.co.uk/new/MEX.csv",
+    "USA (MLS)": "https://www.football-data.co.uk/new/USA.csv",
+    "Brasil (Serie A)": "https://www.football-data.co.uk/new/BRA.csv",
+    "Argentina (Liga Prof)": "https://www.football-data.co.uk/new/ARG.csv",
+    "Inglaterra (Premier League)": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+    "Espana (LaLiga)": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+    "Italia (Serie A)": "https://www.football-data.co.uk/mmz4281/2526/I1.csv",
+    "Alemania (Bundesliga)": "https://www.football-data.co.uk/mmz4281/2526/D1.csv",
+    "Francia (Ligue 1)": "https://www.football-data.co.uk/mmz4281/2526/F1.csv"
+}
+
+@st.cache_resource
+def entrenar_y_cargar(url):
     raw = pd.read_csv(url)
-    raw = raw[raw['Season'] == '2025/2026']
-    raw = raw.dropna(subset=['HG', 'AG'])
+    rename_map = {'HomeTeam': 'Home', 'AwayTeam': 'Away', 'FTHG': 'HG', 'FTAG': 'AG'}
+    raw = raw.rename(columns=rename_map)
     
-    equipos = {}
+    if 'Season' in raw.columns:
+        ultima_temporada = raw['Season'].dropna().iloc[-1]
+        raw = raw[raw['Season'] == ultima_temporada]
+    
+    raw = raw.dropna(subset=['Home', 'Away', 'HG', 'AG'])
+    
+    equipos_stats = {}
     todos = pd.concat([raw['Home'], raw['Away']]).unique()
     
     for equipo in todos:
         partidos = raw[(raw['Home'] == equipo) | (raw['Away'] == equipo)].tail(12)
         GF, GA, MP, PTS = 0, 0, 0, 0
-        
         for _, row in partidos.iterrows():
-            if row['Home'] == equipo:
-                gf, ga = row['HG'], row['AG']
-            else:
-                gf, ga = row['AG'], row['HG']
-                
-            GF += gf
-            GA += ga
-            MP += 1
+            if row['Home'] == equipo: gf, ga = row['HG'], row['AG']
+            else: gf, ga = row['AG'], row['HG']
+            GF += gf; GA += ga; MP += 1
             if gf > ga: PTS += 3
             elif gf == ga: PTS += 1
-                
-        elo = 1500 + (GF - GA) * 8 + PTS * 2
-        equipos[equipo] = {"Squad": equipo, "GF": GF, "GA": GA, "MP": MP, "Elo": elo}
         
-    df = pd.DataFrame(list(equipos.values()))
-    return raw, df
+        elo = 1500 + (GF - GA) * 8 + PTS * 2
+        equipos_stats[equipo] = {"Squad": equipo, "GF": GF, "GA": GA, "MP": MP, "Elo": elo}
+    
+    df_stats = pd.DataFrame(list(equipos_stats.values()))
+    
+    # Entrenamiento ML (Sklearn)
+    X_train, y_train = [], []
+    for _, row in raw.iterrows():
+        if row['HG'] > row['AG']: y = 1
+        elif row['HG'] == row['AG']: y = 0
+        else: y = 2
+        elo_h = equipos_stats.get(row['Home'], {}).get('Elo', 1500)
+        elo_a = equipos_stats.get(row['Away'], {}).get('Elo', 1500)
+        ventaja = (elo_h + 100) / max(elo_a, 1)
+        X_train.append([1 / ventaja, ventaja])
+        y_train.append(y)
+        
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_train)
+    model = LogisticRegression(class_weight='balanced')
+    model.fit(X_scaled, y_train)
+    
+    return raw, df_stats, model, scaler
 
 def obtener_sede_stats(raw_matches, equipo):
-    partidos_local = raw_matches[raw_matches['Home'] == equipo].tail(5)
-    partidos_visita = raw_matches[raw_matches['Away'] == equipo].tail(5)
+    p_local = raw_matches[raw_matches['Home'] == equipo].tail(5)
+    p_visita = raw_matches[raw_matches['Away'] == equipo].tail(5)
     return {
-        "local_gf": partidos_local['HG'].sum(),
-        "local_ga": partidos_local['AG'].sum(),
-        "local_mp": max(len(partidos_local), 1),
-        "visita_gf": partidos_visita['AG'].sum(),
-        "visita_ga": partidos_visita['HG'].sum(),
-        "visita_mp": max(len(partidos_visita), 1)
+        "local_gf": p_local['HG'].sum(), "local_ga": p_local['AG'].sum(), "local_mp": max(len(p_local), 1),
+        "visita_gf": p_visita['AG'].sum(), "visita_ga": p_visita['HG'].sum(), "visita_mp": max(len(p_visita), 1)
     }
 
-def generar_recomendacion(prob_local, prob_empate, prob_visita, over05, over15, over25, over35, over45, under25, under35, btts):
-    recomendaciones = []
-    if prob_local >= 47: recomendaciones.append("Money Line recomendado: **Gana Local**")
-    elif prob_visita >= 47: recomendaciones.append("Money Line recomendado: **Gana Visita**")
-    else:
-        if prob_local > prob_visita: recomendaciones.append("Doble oportunidad: **Local o Empate**")
-        elif prob_visita > prob_local: recomendaciones.append("Doble oportunidad: **Visita o Empate**")
-        else: recomendaciones.append("Partido muy equilibrado en 1X2")
-        
-    if prob_empate >= 30: recomendaciones.append("El **Empate** tiene valor estadístico")
-    if over15 >= 72: recomendaciones.append("Pick fuerte: **Over 1.5 goles**")
-    if over25 >= 54: recomendaciones.append("Pick agresivo: **Over 2.5 goles**")
-    if under25 >= 56: recomendaciones.append("Pick defensivo: **Under 2.5 goles**")
-    if under35 >= 72: recomendaciones.append("Pick conservador: **Under 3.5 goles**")
-    if btts >= 58: recomendaciones.append("**Ambos equipos anotan** tiene valor")
-    
-    if len(recomendaciones) <= 1: recomendaciones.append("Sin valor estadístico claro")
-    return recomendaciones
+# --- INTERFAZ ---
+st.title("Casa de Apuestas El Gordo")
+st.subheader("Analisis Global con Inteligencia Artificial")
 
-# --- INTERFAZ WEB ---
-st.title("⚽ EasyBet - Predictor Liga MX")
+liga_sel = st.selectbox("Selecciona el torneo:", list(LIGAS.keys()))
 
 try:
-    raw_matches, df = cargar_datos_online()
+    raw_matches, df, ml_model, scaler = entrenar_y_cargar(LIGAS[liga_sel])
     equipos_lista = sorted(df['Squad'].unique())
     
-    col1, col2, col3 = st.columns([2, 1, 2])
+    col1, col2 = st.columns(2)
     with col1: loc = st.selectbox("Local", equipos_lista)
-    with col2: st.markdown("<h3 style='text-align: center; margin-top: 25px;'>VS</h3>", unsafe_allow_html=True)
-    with col3: vis = st.selectbox("Visita", reversed(equipos_lista))
+    with col2: vis = st.selectbox("Visita", [e for e in equipos_lista if e != loc])
     
     if st.button("Analizar Partido", use_container_width=True):
-        if loc == vis:
-            st.error("Selecciona equipos diferentes")
-        else:
-            # --- LÓGICA MATEMÁTICA ---
-            d_l = df[df['Squad'] == loc].iloc[0]
-            d_v = df[df['Squad'] == vis].iloc[0]
-            sede_l = obtener_sede_stats(raw_matches, loc)
-            sede_v = obtener_sede_stats(raw_matches, vis)
-            
-            ataque_local = ((d_l['GF']/d_l['MP']) * 0.6) + ((sede_l['local_gf']/sede_l['local_mp']) * 0.4)
-            defensa_local = ((d_l['GA']/d_l['MP']) * 0.6) + ((sede_l['local_ga']/sede_l['local_mp']) * 0.4)
-            ataque_visita = ((d_v['GF']/d_v['MP']) * 0.6) + ((sede_v['visita_gf']/sede_v['visita_mp']) * 0.4)
-            defensa_visita = ((d_v['GA']/d_v['MP']) * 0.6) + ((sede_v['visita_ga']/sede_v['visita_mp']) * 0.4)
-            
-            l_l = max(((ataque_local + defensa_visita) / 2) * 1.18, 0.1)
-            l_v = max(((ataque_visita + defensa_local) / 2), 0.1)
-            
-            elo_l, elo_v = d_l['Elo'], d_v['Elo']
-            ajuste = (elo_l - elo_v) / 1800
-            l_l *= (1 + ajuste)
-            l_v *= (1 - ajuste)
-            
-            prob_local_elo = (1 / (1 + 10 ** ((elo_v - elo_l) / 400))) * 100
-            prob_visita_elo = 100 - prob_local_elo
-            
-            max_goles = 10
-            matriz = np.outer(poisson.pmf(range(max_goles), l_l), poisson.pmf(range(max_goles), l_v))
-            matriz = matriz / matriz.sum()
-            
-            prob_local = np.sum(np.tril(matriz, -1)) * 100
-            prob_empate = np.sum(np.diag(matriz)) * 100
-            prob_visita = np.sum(np.triu(matriz, 1)) * 100
-            
-            goles = np.add.outer(range(max_goles), range(max_goles))
-            def calc_over(n): return np.sum(matriz[goles > n]) * 100
-            
-            over05, over15, over25, over35, over45 = calc_over(0.5), calc_over(1.5), calc_over(2.5), calc_over(3.5), calc_over(4.5)
-            under05, under15, under25, under35, under45 = 100-over05, 100-over15, 100-over25, 100-over35, 100-over45
-            btts = np.sum(matriz[1:, 1:]) * 100
-            
-            marcadores = []
-            for i in range(max_goles):
-                for j in range(max_goles):
-                    marcadores.append((matriz[i, j] * 100, i, j))
-            marcadores.sort(reverse=True)
-            
-            recoms = generar_recomendacion(prob_local, prob_empate, prob_visita, over05, over15, over25, over35, over45, under25, under35, btts)
+        d_l = df[df['Squad'] == loc].iloc[0]
+        d_v = df[df['Squad'] == vis].iloc[0]
+        sede_l = obtener_sede_stats(raw_matches, loc)
+        sede_v = obtener_sede_stats(raw_matches, vis)
+        
+        # Poisson
+        at_l = ((d_l['GF']/d_l['MP']) * 0.6) + ((sede_l['local_gf']/sede_l['local_mp']) * 0.4)
+        df_l = ((d_l['GA']/d_l['MP']) * 0.6) + ((sede_l['local_ga']/sede_l['local_mp']) * 0.4)
+        at_v = ((d_v['GF']/d_v['MP']) * 0.6) + ((sede_v['visita_gf']/sede_v['visita_mp']) * 0.4)
+        df_v = ((d_v['GA']/d_v['MP']) * 0.6) + ((sede_v['visita_ga']/sede_v['visita_mp']) * 0.4)
+        
+        l_l = max(((at_l + df_v) / 2) * 1.18, 0.1)
+        l_v = max(((at_v + df_l) / 2), 0.1)
+        ajuste = (d_l['Elo'] - d_v['Elo']) / 1800
+        l_l *= (1 + ajuste); l_v *= (1 - ajuste)
+        
+        matriz = np.outer(poisson.pmf(range(10), l_l), poisson.pmf(range(10), l_v))
+        matriz /= matriz.sum()
+        
+        # Predicción ML
+        ventaja_l = (d_l['Elo'] + 100) / max(d_v['Elo'], 1)
+        X_new = scaler.transform([[1 / ventaja_l, ventaja_l]])
+        probs_ml = ml_model.predict_proba(X_new)[0]
+        clases = list(ml_model.classes_)
+        p_emp_ml = probs_ml[clases.index(0)] * 100
+        p_loc_ml = probs_ml[clases.index(1)] * 100
+        p_vis_ml = probs_ml[clases.index(2)] * 100
+        
+        # Goles
+        goles = np.add.outer(range(10), range(10))
+        over25 = np.sum(matriz[goles > 2.5]) * 100
+        under25 = 100 - over25
+        btts = np.sum(matriz[1:, 1:]) * 100
 
-            # --- RENDERIZADO DE RESULTADOS ---
-            st.success("Análisis completado exitosamente")
-            
-            st.subheader("Recomendación EasyBet 💡")
-            for r in recoms:
-                st.info(r)
+        # --- RESULTADOS ---
+        st.success("Analisis de IA Completado")
+        
+        st.write("### Recomendaciones Casa de Apuestas El Gordo")
+        if p_loc_ml >= 45: st.info("MoneyLine: Gana Local (Confianza Sklearn)")
+        elif p_vis_ml >= 45: st.info("MoneyLine: Gana Visita (Confianza Sklearn)")
+        else: st.info("Doble Oportunidad sugerida por equilibrio")
+        
+        if over25 >= 55: st.info("Goles: Over 2.5 tiene valor")
+        if btts >= 58: st.info("Ambos Equipos Anotan: SI")
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric(f"Prob. {loc}", f"{prob_local:.1f}%")
-            c2.metric("Empate", f"{prob_empate:.1f}%")
-            c3.metric(f"Prob. {vis}", f"{prob_visita:.1f}%")
-            
-            with st.expander("Ver estadísticas detalladas"):
-                st.write(f"**Goles Esperados:** {loc} ({l_l:.2f}) vs {vis} ({l_v:.2f})")
-                st.write(f"**Elo Dinámico:** {loc} ({elo_l:.0f}) vs {vis} ({elo_v:.0f})")
-                st.write(f"**Jerarquía:** {loc} ({prob_local_elo:.1f}%) vs {vis} ({prob_visita_elo:.1f}%)")
-                st.write(f"**Ambos Anotan (BTTS):** {btts:.1f}%")
-                
-                col_over, col_under = st.columns(2)
-                with col_over:
-                    st.write("**Overs:**")
-                    st.write(f"+1.5: {over15:.1f}% | +2.5: {over25:.1f}%")
-                with col_under:
-                    st.write("**Unders:**")
-                    st.write(f"-2.5: {under25:.1f}% | -3.5: {under35:.1f}%")
-                    
-                st.write("**Top 5 Marcadores Probables:**")
-                for i in range(5):
-                    p, gl, gv = marcadores[i]
+        c1, c2, c3 = st.columns(3)
+        c1.metric(f"Prob. {loc}", f"{p_loc_ml:.1f}%")
+        c2.metric("Empate", f"{p_emp_ml:.1f}%")
+        c3.metric(f"Prob. {vis}", f"{p_vis_ml:.1f}%")
+
+        with st.expander("Ver detalle técnico"):
+            st.write(f"Goles esperados: {loc} ({l_l:.2f}) - {vis} ({l_v:.2f})")
+            st.write(f"Probabilidades Poisson: Local {np.sum(np.tril(matriz, -1))*100:.1f}%")
+            st.write("--- Top 3 Marcadores ---")
+            m_list = []
+            for i in range(10):
+                for j in range(10): m_list.append((matriz[i,j], i, j))
+            m_list.sort(reverse=True)
+            for i in range(3):
+                st.write(f"{loc} {m_list[i][1]} - {m_list[i][2]} {vis} ({m_list[i][0]*100:.1f}%)")
+
+except Exception as e:
+    st.error(f"Error cargando la liga: {e}")
                     st.write(f"{i+1}. {loc} **{gl} - {gv}** {vis} ({p:.1f}%)")
 
 except Exception as e:
