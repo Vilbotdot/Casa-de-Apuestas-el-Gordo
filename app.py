@@ -265,6 +265,19 @@ else:
                     over45 = calc_over(4.5); under45 = 100 - over45
                     btts = np.sum(matriz[1:, 1:]) * 100
 
+                    # --- NUEVO: CALCULAR LOS 5 MARCADORES EXACTOS ---
+                    marcadores = []
+                    for i in range(10):
+                        for j in range(10):
+                            marcadores.append((matriz[i, j] * 100, i, j))
+                    marcadores.sort(reverse=True)
+                    
+                    texto_marcadores = ""
+                    for i in range(5):
+                        p, gl, gv = marcadores[i]
+                        texto_marcadores += f"{i+1}. {loc} {gl} - {gv} {vis} ({p:.1f}%)\n"
+                    # --------------------------------------------------
+
                     ventaja_local = (d_l['Elo'] + 100) / max(d_v['Elo'], 1)
                     X_pred_scaled = scaler.transform([[1 / ventaja_local, ventaja_local]])
                     
@@ -280,6 +293,7 @@ else:
                         over05, over15, over25, over35, over45, under25, under35, btts
                     )
 
+                    # --- NUEVO: SALIDA COMPLETA ACTUALIZADA ---
                     salida_completa = f"""==============================
 {loc} vs {vis}
 ==============================
@@ -297,9 +311,13 @@ Local: {prob_local:.1f}% | Empate: {prob_empate:.1f}% | Visita: {prob_visita:.1f
 +0.5: {over05:.1f}% | -0.5: {under05:.1f}%
 +1.5: {over15:.1f}% | -1.5: {under15:.1f}%
 +2.5: {over25:.1f}% | -2.5: {under25:.1f}%
++3.5: {over35:.1f}% | -3.5: {under35:.1f}%
++4.5: {over45:.1f}% | -4.5: {under45:.1f}%
 
 Ambos Equipos Anotan (BTTS): {btts:.1f}%
 
+--- TOP 5 MARCADORES EXACTOS ---
+{texto_marcadores}
 --- RECOMENDACIONES ---
 {recomendacion}
 """
