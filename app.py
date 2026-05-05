@@ -50,7 +50,6 @@ def entrenar_y_cargar(url):
     
     df_stats = pd.DataFrame(list(equipos_stats.values()))
     
-    # Entrenamiento ML (Sklearn)
     X_train, y_train = [], []
     for _, row in raw.iterrows():
         if row['HG'] > row['AG']: y = 1
@@ -97,7 +96,6 @@ try:
         sede_l = obtener_sede_stats(raw_matches, loc)
         sede_v = obtener_sede_stats(raw_matches, vis)
         
-        # Poisson
         at_l = ((d_l['GF']/d_l['MP']) * 0.6) + ((sede_l['local_gf']/sede_l['local_mp']) * 0.4)
         df_l = ((d_l['GA']/d_l['MP']) * 0.6) + ((sede_l['local_ga']/sede_l['local_mp']) * 0.4)
         at_v = ((d_v['GF']/d_v['MP']) * 0.6) + ((sede_v['visita_gf']/sede_v['visita_mp']) * 0.4)
@@ -111,22 +109,18 @@ try:
         matriz = np.outer(poisson.pmf(range(10), l_l), poisson.pmf(range(10), l_v))
         matriz /= matriz.sum()
         
-        # Predicción ML
         ventaja_l = (d_l['Elo'] + 100) / max(d_v['Elo'], 1)
         X_new = scaler.transform([[1 / ventaja_l, ventaja_l]])
         probs_ml = ml_model.predict_proba(X_new)[0]
         clases = list(ml_model.classes_)
-        p_emp_ml = probs_ml[clases.index(0)] * 100
-        p_loc_ml = probs_ml[clases.index(1)] * 100
-        p_vis_ml = probs_ml[clases.index(2)] * 100
+        p_emp_ml = (probs_ml[clases.index(0)] * 100) if 0 in clases else 0
+        p_loc_ml = (probs_ml[clases.index(1)] * 100) if 1 in clases else 0
+        p_vis_ml = (probs_ml[clases.index(2)] * 100) if 2 in clases else 0
         
-        # Goles
         goles = np.add.outer(range(10), range(10))
         over25 = np.sum(matriz[goles > 2.5]) * 100
-        under25 = 100 - over25
         btts = np.sum(matriz[1:, 1:]) * 100
 
-        # --- RESULTADOS ---
         st.success("Analisis de IA Completado")
         
         st.write("### Recomendaciones Casa de Apuestas El Gordo")
@@ -144,18 +138,14 @@ try:
 
         with st.expander("Ver detalle técnico"):
             st.write(f"Goles esperados: {loc} ({l_l:.2f}) - {vis} ({l_v:.2f})")
-            st.write(f"Probabilidades Poisson: Local {np.sum(np.tril(matriz, -1))*100:.1f}%")
             st.write("--- Top 3 Marcadores ---")
             m_list = []
             for i in range(10):
                 for j in range(10): m_list.append((matriz[i,j], i, j))
             m_list.sort(reverse=True)
             for i in range(3):
-                st.write(f"{loc} {m_list[i][1]} - {m_list[i][2]} {vis} ({m_list[i][0]*100:.1f}%)")
+                p_m, gl, gv = m_list[i]
+                st.write(f"{loc} **{gl} - {gv}** {vis} ({p_m*100:.1f}%)")
 
 except Exception as e:
     st.error(f"Error cargando la liga: {e}")
-                    st.write(f"{i+1}. {loc} **{gl} - {gv}** {vis} ({p:.1f}%)")
-
-except Exception as e:
-    st.error(f"Error cargando datos: {e}")
