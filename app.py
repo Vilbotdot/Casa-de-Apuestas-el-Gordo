@@ -87,6 +87,8 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
 # 4. PANTALLA DE LOGIN
 # ==========================================
 def pantalla_login():
+    col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
     st.image("image_6.jpg", width=150, caption="Picks VIP - El Gordo")
     st.title("🔐 Casa de Apuestas El Gordo - Web VIP")
     
