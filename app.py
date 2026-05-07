@@ -13,7 +13,7 @@ st.set_page_config(page_title="El Gordo Picks", layout="centered", page_icon="�
 
 @st.cache_resource
 def init_connection():
-    # Recuerda que esto lee de tu archivo .streamlit/secrets.toml
+    # Lee de tu archivo .streamlit/secrets.toml
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
@@ -89,6 +89,11 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
 def pantalla_login():
     st.title("🔐 Casa de Apuestas El Gordo - Web VIP")
     
+    try:
+        st.image("image_6.jpg", width=100)
+    except Exception:
+        st.warning("La imagen 'image_6.jpg' no se encontró.")
+    
     t_login, t_registro = st.tabs(["Iniciar Sesión", "Crear Cuenta"])
     
     with t_login:
@@ -118,20 +123,20 @@ def pantalla_login():
 if st.session_state.usuario_id is None:
     pantalla_login()
 else:
-    # --- MENÚ LATERAL (SIDEBAR) ---
     st.sidebar.title("🎲 El Gordo Picks")
+    try:
+        st.sidebar.image("image_6.jpg", width=75)
+    except Exception:
+        pass
+        
     st.sidebar.success("Sesión Activa")
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state.usuario_id = None
         st.session_state.model_data = None
         st.rerun()
 
-    # --- PESTAÑAS PRINCIPALES ---
     tab_calc, tab_hist = st.tabs(["📊 Calculadora de Picks", "📜 Mi Historial"])
 
-    # ----------------------------------------
-    # PESTAÑA 1: CALCULADORA Y PREDICCIÓN
-    # ----------------------------------------
     with tab_calc:
         st.header("Análisis Global de Ligas")
         
@@ -149,9 +154,8 @@ else:
 
         liga_seleccionada = st.selectbox("Selecciona el torneo:", list(ligas.keys()))
 
-        # Cambio de nombre del botón a Importar
         if st.button("📥 Importar Datos y Entrenar IA"):
-            with st.spinner("Extrayendo estadísticas y entrenando modelo Sklearn..."):
+            with st.spinner("Extrayendo estadísticas..."):
                 try:
                     url = ligas[liga_seleccionada]
                     raw = pd.read_csv(url)
@@ -200,29 +204,23 @@ else:
 
                     scaler = StandardScaler()
                     X_train_scaled = scaler.fit_transform(X_train)
-                    
                     ml_model = LogisticRegression(class_weight='balanced')
                     ml_model.fit(X_train_scaled, y_train)
 
-                    # Guardar modelo en sesión
                     st.session_state.model_data = {
                         "df": df, "raw": raw, "scaler": scaler, 
                         "ml_model": ml_model, "equipos": equipos_lista, "liga": liga_seleccionada
                     }
-                    st.success("¡Base de datos importada y modelo entrenado con éxito!")
+                    st.success("¡Base de datos importada y modelo entrenado!")
                 except Exception as e:
                     st.error(f"Error procesando datos: {e}")
 
-        # Si el modelo ya está entrenado, mostramos los selectores de equipos
         if st.session_state.model_data is not None:
             st.divider()
             st.subheader("Generar Pronóstico")
-            
             c1, c2 = st.columns(2)
-            with c1:
-                loc = st.selectbox("Equipo Local", st.session_state.model_data["equipos"])
-            with c2:
-                vis = st.selectbox("Equipo Visitante", st.session_state.model_data["equipos"], index=1)
+            with c1: loc = st.selectbox("Equipo Local", st.session_state.model_data["equipos"])
+            with c2: vis = st.selectbox("Equipo Visitante", st.session_state.model_data["equipos"], index=1)
 
             if st.button("🤖 Analizar Partido", type="primary"):
                 if loc == vis:
@@ -233,7 +231,6 @@ else:
                     
                     d_l = df[df['Squad'] == loc].iloc[0]
                     d_v = df[df['Squad'] == vis].iloc[0]
-
                     sede_l = obtener_sede_stats(raw, loc)
                     sede_v = obtener_sede_stats(raw, vis)
 
@@ -244,21 +241,18 @@ else:
 
                     l_l = ((ataque_local + defensa_visita) / 2) * 1.18
                     l_v = ((ataque_visita + defensa_local) / 2)
-
                     ajuste = (d_l['Elo'] - d_v['Elo']) / 1800
                     l_l = max(l_l * (1 + ajuste), 0.1)
                     l_v = max(l_v * (1 - ajuste), 0.1)
 
                     matriz = np.outer(poisson.pmf(range(10), l_l), poisson.pmf(range(10), l_v))
                     matriz = matriz / matriz.sum()
-
                     prob_local = np.sum(np.tril(matriz, -1)) * 100
                     prob_empate = np.sum(np.diag(matriz)) * 100
                     prob_visita = np.sum(np.triu(matriz, 1)) * 100
 
                     goles = np.add.outer(range(10), range(10))
                     def calc_over(n): return np.sum(matriz[goles > n]) * 100
-
                     over05 = calc_over(0.5); under05 = 100 - over05
                     over15 = calc_over(1.5); under15 = 100 - over15
                     over25 = calc_over(2.5); under25 = 100 - over25
@@ -271,7 +265,6 @@ else:
                         for j in range(10):
                             marcadores.append((matriz[i, j] * 100, i, j))
                     marcadores.sort(reverse=True)
-                    
                     texto_marcadores = ""
                     for i in range(5):
                         p, gl, gv = marcadores[i]
@@ -279,48 +272,28 @@ else:
 
                     ventaja_local = (d_l['Elo'] + 100) / max(d_v['Elo'], 1)
                     X_pred_scaled = scaler.transform([[1 / ventaja_local, ventaja_local]])
-                    
                     probs_ml = ml_model.predict_proba(X_pred_scaled)[0]
                     clases = list(ml_model.classes_)
-                    
                     prob_empate_ml = probs_ml[clases.index(0)] * 100 if 0 in clases else 0
                     prob_local_ml = probs_ml[clases.index(1)] * 100 if 1 in clases else 0
                     prob_visita_ml = probs_ml[clases.index(2)] * 100 if 2 in clases else 0
 
-                    recomendacion = generar_recomendacion(
-                        prob_local_ml, prob_empate_ml, prob_visita_ml,
-                        over05, over15, over25, over35, over45, under25, under35, btts
-                    )
+                    recomendacion = generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05, over15, over25, over35, over45, under25, under35, btts)
 
-                    # Texto limpio para la base de datos (se mantiene igual para el registro)
-                    salida_completa = f"""==============================
-{loc} vs {vis}
-==============================
---- PROBABILIDADES 1X2 (SKLEARN ML) ---
+                    salida_completa = f"""--- PROBABILIDADES IA ---
 Local: {prob_local_ml:.1f}% | Empate: {prob_empate_ml:.1f}% | Visita: {prob_visita_ml:.1f}%
 
---- PROBABILIDADES 1X2 (POISSON) ---
+--- PROBABILIDADES POISSON ---
 Local: {prob_local:.1f}% | Empate: {prob_empate:.1f}% | Visita: {prob_visita:.1f}%
 
---- GOLES ESPERADOS (xG) ---
-{loc}: {l_l:.2f}
-{vis}: {l_v:.2f}
+--- xG ---
+{loc}: {l_l:.2f} | {vis}: {l_v:.2f}
 
---- OVER / UNDER ---
-+0.5: {over05:.1f}% | -0.5: {under05:.1f}%
-+1.5: {over15:.1f}% | -1.5: {under15:.1f}%
-+2.5: {over25:.1f}% | -2.5: {under25:.1f}%
-+3.5: {over35:.1f}% | -3.5: {under35:.1f}%
-+4.5: {over45:.1f}% | -4.5: {under45:.1f}%
-
-Ambos Equipos Anotan (BTTS): {btts:.1f}%
-
---- TOP 5 MARCADORES EXACTOS ---
+--- TOP MARCADOES ---
 {texto_marcadores}
 --- RECOMENDACIONES ---
-{recomendacion}
-"""
-                    # GUARDAR EN SUPABASE AUTOMÁTICAMENTE
+{recomendacion}"""
+
                     try:
                         supabase.table("historial_apuestas").insert({
                             "user_id": st.session_state.usuario_id,
@@ -330,65 +303,39 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
                             "recomendacion": salida_completa
                         }).execute()
                     except Exception as e:
-                        st.warning(f"Error guardando en historial: {e}")
+                        st.warning(f"Error guardando historial: {e}")
 
-                    # --- NUEVO DISEÑO VISUAL PARA PANTALLA ---
-                    st.success("¡Análisis completado y guardado en tu historial!")
+                    st.success("¡Análisis completado!")
                     st.markdown(f"### 🏟️ {loc} vs {vis}")
-                    
                     with st.expander("📊 Probabilidades 1X2", expanded=True):
-                        col_ia, col_po = st.columns(2)
-                        with col_ia:
-                            st.markdown("**🤖 Sklearn ML (IA)**")
-                            st.write(f"🏠 Local: {prob_local_ml:.1f}%")
-                            st.write(f"🤝 Empate: {prob_empate_ml:.1f}%")
-                            st.write(f"✈️ Visita: {prob_visita_ml:.1f}%")
-                        with col_po:
-                            st.markdown("**📉 Poisson Tradicional**")
-                            st.write(f"🏠 Local: {prob_local:.1f}%")
-                            st.write(f"🤝 Empate: {prob_empate:.1f}%")
-                            st.write(f"✈️ Visita: {prob_visita:.1f}%")
-
-                    with st.expander("⚽ Goles Esperados (xG) y BTTS"):
-                        st.markdown(f"**{loc}:** {l_l:.2f} xG")
-                        st.markdown(f"**{vis}:** {l_v:.2f} xG")
-                        st.markdown("---")
-                        st.markdown(f"🔥 **Ambos Equipos Anotan (BTTS):** {btts:.1f}%")
-
-                    with st.expander("📈 Over / Under Total de Goles"):
-                        st.markdown(f"**0.5:** 🟢 + {over05:.1f}% | 🔴 - {under05:.1f}%")
-                        st.markdown(f"**1.5:** 🟢 + {over15:.1f}% | 🔴 - {under15:.1f}%")
-                        st.markdown(f"**2.5:** 🟢 + {over25:.1f}% | 🔴 - {under25:.1f}%")
-                        st.markdown(f"**3.5:** 🟢 + {over35:.1f}% | 🔴 - {under35:.1f}%")
-                        st.markdown(f"**4.5:** 🟢 + {over45:.1f}% | 🔴 - {under45:.1f}%")
-
-                    with st.expander("🎯 Top 5 Marcadores Exactos"):
-                        st.markdown(texto_marcadores)
-
-                    with st.expander("💡 Recomendaciones de 'El Gordo'", expanded=True):
+                        st.write(f"🤖 IA -> L: {prob_local_ml:.1f}% | E: {prob_empate_ml:.1f}% | V: {prob_visita_ml:.1f}%")
+                    with st.expander("💡 Recomendaciones", expanded=True):
                         st.markdown(recomendacion)
 
-    # ----------------------------------------
-    # PESTAÑA 2: EL HISTORIAL
-    # ----------------------------------------
     with tab_hist:
         st.header("📜 Historial de Análisis")
-        if st.button("🔄 Refrescar Historial"):
-            st.rerun()
+        
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            if st.button("🔄 Refrescar"): st.rerun()
+        with c2:
+            # BOTÓN DE BORRADO DEFINITIVO
+            if st.button("🗑️ Borrar Todo el Historial", type="secondary"):
+                try:
+                    supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
+                    st.success("Historial eliminado.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al borrar: {e}")
 
         try:
             res = supabase.table("historial_apuestas").select("*").eq("user_id", st.session_state.usuario_id).order("fecha", desc=True).execute()
             datos = res.data
-            
             if not datos:
-                st.info("Aún no tienes pronósticos guardados en tu cuenta.")
+                st.info("Sin registros.")
             else:
                 for fila in datos:
-                    fecha_corta = fila['fecha'][:10]
-                    titulo = f"🗓️ {fecha_corta} | 🏆 {fila['liga']} | ⚽ {fila['equipo_local']} vs {fila['equipo_visita']}"
-                    
-                    with st.expander(titulo):
+                    with st.expander(f"🗓️ {fila['fecha'][:10]} | {fila['equipo_local']} vs {fila['equipo_visita']}"):
                         st.code(fila['recomendacion'], language="markdown")
-                        
         except Exception as e:
-            st.error(f"Error cargando historial: {e}")
+            st.error(f"Error: {e}")
