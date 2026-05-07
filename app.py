@@ -54,10 +54,10 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
     recomendaciones = []
     favorito = None
     if prob_local_ml >= 45:
-        recomendaciones.append("✅ **MoneyLine:** Gana Local (Sklearn)")
+        recomendaciones.append("✅ **MoneyLine:** Gana Local (Confianza Sklearn)")
         favorito = "Local"
     elif prob_visita_ml >= 45:
-        recomendaciones.append("✅ **MoneyLine:** Gana Visita (Sklearn)")
+        recomendaciones.append("✅ **MoneyLine:** Gana Visita (Confianza Sklearn)")
         favorito = "Visita"
     else:
         if prob_local_ml > prob_visita_ml:
@@ -67,19 +67,19 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
             recomendaciones.append("⚠️ **Doble oportunidad:** Visita o Empate")
             favorito = "Visita_DC"
 
-    if over25 >= 55: recomendaciones.append(" **Goles:** Over 2.5 tiene valor")
-    elif under25 >= 58: recomendaciones.append(" **Goles:** Pick defensivo Under 2.5")
+    if over25 >= 55: recomendaciones.append("⚽ **Goles:** Over 2.5 tiene valor")
+    elif under25 >= 58: recomendaciones.append("🛡️ **Goles:** Pick defensivo Under 2.5")
         
     if btts >= 58: recomendaciones.append("🔥 **Ambos Equipos Anotan:** SI")
 
     recomendaciones.append("\n**--- COMBINADAS DE ALTO VALOR ---**")
-    if favorito == "Local" and under35 >= 75: recomendaciones.append("**Combo:** Local Gana + Under 3.5 Goles")
-    elif favorito == "Visita" and under35 >= 75: recomendaciones.append("**Combo:** Visita Gana + Under 3.5 Goles")
+    if favorito == "Local" and under35 >= 75: recomendaciones.append("💸 **Combo:** Local Gana + Under 3.5 Goles")
+    elif favorito == "Visita" and under35 >= 75: recomendaciones.append("💸 **Combo:** Visita Gana + Under 3.5 Goles")
         
-    if favorito in ["Local", "Local_DC"] and over15 >= 75: recomendaciones.append(" **Combo Seguro:** Local o Empate + Over 1.5 Goles")
-    elif favorito in ["Visita", "Visita_DC"] and over15 >= 75: recomendaciones.append(" **Combo Seguro:** Visita o Empate + Over 1.5 Goles")
+    if favorito in ["Local", "Local_DC"] and over15 >= 75: recomendaciones.append("🔒 **Combo Seguro:** Local o Empate + Over 1.5 Goles")
+    elif favorito in ["Visita", "Visita_DC"] and over15 >= 75: recomendaciones.append("🔒 **Combo Seguro:** Visita o Empate + Over 1.5 Goles")
         
-    if favorito in ["Local_DC", "Visita_DC"] and btts >= 60: recomendaciones.append(" **Combo Goles:** Ambos Equipos Anotan + Over 2.5 Goles")
+    if favorito in ["Local_DC", "Visita_DC"] and btts >= 60: recomendaciones.append("💥 **Combo Goles:** Ambos Equipos Anotan + Over 2.5 Goles")
 
     return "\n".join(recomendaciones)
 
@@ -328,38 +328,38 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
                         st.warning(f"Error guardando en historial: {e}")
 
                     st.success("¡Análisis completado y guardado en tu historial!")
-                    st.markdown(f"###  {loc} vs {vis}")
+                    st.markdown(f"### 🏟️ {loc} vs {vis}")
                     
                     with st.expander("📊 Probabilidades 1X2", expanded=True):
                         col_ia, col_po = st.columns(2)
                         with col_ia:
-                            st.markdown("** Sklearn ML (IA)**")
-                            st.write(f" Local: {prob_local_ml:.1f}%")
-                            st.write(f" Empate: {prob_empate_ml:.1f}%")
-                            st.write(f" Visita: {prob_visita_ml:.1f}%")
+                            st.markdown("**🤖 Sklearn ML (IA)**")
+                            st.write(f"🏠 Local: {prob_local_ml:.1f}%")
+                            st.write(f"🤝 Empate: {prob_empate_ml:.1f}%")
+                            st.write(f"✈️ Visita: {prob_visita_ml:.1f}%")
                         with col_po:
                             st.markdown("**📉 Poisson Tradicional**")
-                            st.write(f" Local: {prob_local:.1f}%")
-                            st.write(f" Empate: {prob_empate:.1f}%")
-                            st.write(f" Visita: {prob_visita:.1f}%")
+                            st.write(f"🏠 Local: {prob_local:.1f}%")
+                            st.write(f"🤝 Empate: {prob_empate:.1f}%")
+                            st.write(f"✈️ Visita: {prob_visita:.1f}%")
 
                     with st.expander("⚽ Goles Esperados (xG) y BTTS"):
                         st.markdown(f"**{loc}:** {l_l:.2f} xG")
                         st.markdown(f"**{vis}:** {l_v:.2f} xG")
                         st.markdown("---")
-                        st.markdown(f" **Ambos Equipos Anotan (BTTS):** {btts:.1f}%")
+                        st.markdown(f"🔥 **Ambos Equipos Anotan (BTTS):** {btts:.1f}%")
 
-                    with st.expander(" Over / Under Total de Goles"):
-                        st.markdown(f"**0.5:** OVER + {over05:.1f}% | UNDER - {under05:.1f}%")
-                        st.markdown(f"**1.5:** OVER + {over15:.1f}% | UNDER - {under15:.1f}%")
-                        st.markdown(f"**2.5:** OVER + {over25:.1f}% | UNDER - {under25:.1f}%")
-                        st.markdown(f"**3.5:** OVER + {over35:.1f}% | UNDER - {under35:.1f}%")
-                        st.markdown(f"**4.5:** OVER + {over45:.1f}% | UNDER - {under45:.1f}%")
+                    with st.expander("📈 Over / Under Total de Goles"):
+                        st.markdown(f"**0.5:** 🟢 + {over05:.1f}% | 🔴 - {under05:.1f}%")
+                        st.markdown(f"**1.5:** 🟢 + {over15:.1f}% | 🔴 - {under15:.1f}%")
+                        st.markdown(f"**2.5:** 🟢 + {over25:.1f}% | 🔴 - {under25:.1f}%")
+                        st.markdown(f"**3.5:** 🟢 + {over35:.1f}% | 🔴 - {under35:.1f}%")
+                        st.markdown(f"**4.5:** 🟢 + {over45:.1f}% | 🔴 - {under45:.1f}%")
 
-                    with st.expander(" Top 5 Marcadores Exactos"):
+                    with st.expander("🎯 Top 5 Marcadores Exactos"):
                         st.markdown(texto_marcadores)
 
-                    with st.expander(" Recomendaciones de 'El Gordo'", expanded=True):
+                    with st.expander("💡 Recomendaciones de 'El Gordo'", expanded=True):
                         st.markdown(recomendacion)
 
     # ----------------------------------------
@@ -369,7 +369,7 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
         st.header("📜 Historial de Análisis")
         
         # EL BOTÓN AHORA ELIMINA LOS REGISTROS EN SUPABASE
-        if st.button("🔄 Refrescar"):
+        if st.button("🔄 Eliminar Historial y Refrescar"):
             try:
                 supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
                 st.success("Historial eliminado correctamente.")
