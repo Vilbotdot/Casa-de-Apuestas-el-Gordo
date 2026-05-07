@@ -154,7 +154,7 @@ else:
 
         liga_seleccionada = st.selectbox("Selecciona el torneo:", list(ligas.keys()))
 
-        if st.button("📥 Importar Datos y Entrenar IA"):
+        if st.button("📥 Importar Datos"):
             with st.spinner("Extrayendo estadísticas..."):
                 try:
                     url = ligas[liga_seleccionada]
