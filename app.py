@@ -371,7 +371,7 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
         st.header("📜 Historial de Análisis")
         
         # EL BOTÓN AHORA ELIMINA LOS REGISTROS EN SUPABASE
-        if st.button("🔄 Eliminar Historial y Refrescar"):
+        if st.button("🔄 Refrescar"):
             try:
                 supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
                 st.success("Historial eliminado correctamente.")
@@ -388,7 +388,7 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
             else:
                 for fila in datos:
                     fecha_corta = fila['fecha'][:10]
-                    titulo = f"🗓️ {fecha_corta} | 🏆 {fila['liga']} |  {fila['equipo_local']} vs {fila['equipo_visita']}"
+                    titulo = f"🗓️ {fecha_corta} |  {fila['liga']} |  {fila['equipo_local']} vs {fila['equipo_visita']}"
                     
                     with st.expander(titulo):
                         st.code(fila['recomendacion'], language="markdown")
