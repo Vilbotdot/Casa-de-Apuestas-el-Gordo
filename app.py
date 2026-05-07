@@ -67,19 +67,19 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
             recomendaciones.append("⚠️ **Doble oportunidad:** Visita o Empate")
             favorito = "Visita_DC"
 
-    if over25 >= 55: recomendaciones.append("⚽ **Goles:** Over 2.5 tiene valor")
-    elif under25 >= 58: recomendaciones.append("🛡️ **Goles:** Pick defensivo Under 2.5")
+    if over25 >= 55: recomendaciones.append("**Goles:** Partido de Altas / Over 2.5")
+    elif under25 >= 58: recomendaciones.append("**Goles:** Partido de Bajas / Under 2.5")
         
-    if btts >= 58: recomendaciones.append("🔥 **Ambos Equipos Anotan:** SI")
+    if btts >= 58: recomendaciones.append("**Ambos Equipos Anotan:** SI")
 
     recomendaciones.append("\n**--- COMBINADAS DE ALTO VALOR ---**")
-    if favorito == "Local" and under35 >= 75: recomendaciones.append("💸 **Combo:** Local Gana + Under 3.5 Goles")
-    elif favorito == "Visita" and under35 >= 75: recomendaciones.append("💸 **Combo:** Visita Gana + Under 3.5 Goles")
+    if favorito == "Local" and under35 >= 75: recomendaciones.append("**Combinada del Gordo:** Local Gana + Under 3.5 Goles")
+    elif favorito == "Visita" and under35 >= 75: recomendaciones.append("**Combinada del Gordo:** Visita Gana + Under 3.5 Goles")
         
-    if favorito in ["Local", "Local_DC"] and over15 >= 75: recomendaciones.append("🔒 **Combo Seguro:** Local o Empate + Over 1.5 Goles")
-    elif favorito in ["Visita", "Visita_DC"] and over15 >= 75: recomendaciones.append("🔒 **Combo Seguro:** Visita o Empate + Over 1.5 Goles")
+    if favorito in ["Local", "Local_DC"] and over15 >= 75: recomendaciones.append("**Lock del Gordo:** Local o Empate + Over 1.5 Goles")
+    elif favorito in ["Visita", "Visita_DC"] and over15 >= 75: recomendaciones.append("**Lock del Gordo:** Visita o Empate + Over 1.5 Goles")
         
-    if favorito in ["Local_DC", "Visita_DC"] and btts >= 60: recomendaciones.append("💥 **Combo Goles:** Ambos Equipos Anotan + Over 2.5 Goles")
+    if favorito in ["Local_DC", "Visita_DC"] and btts >= 60: recomendaciones.append("**Pick de Goles:** Ambos Equipos Anotan + Over 2.5 Goles")
 
     return "\n".join(recomendaciones)
 
@@ -135,7 +135,7 @@ else:
         st.session_state.model_data = None
         st.rerun()
 
-    tab_calc, tab_hist = st.tabs(["📊 Calculadora de Picks", "📜 Mi Historial"])
+    tab_calc, tab_hist = st.tabs(["📊 Analizador de Apuestas", "📜 Mi Historial"])
 
     with tab_calc:
         st.header("Análisis Global de Ligas")
@@ -222,7 +222,7 @@ else:
             with c1: loc = st.selectbox("Equipo Local", st.session_state.model_data["equipos"])
             with c2: vis = st.selectbox("Equipo Visitante", st.session_state.model_data["equipos"], index=1)
 
-            if st.button("🤖 Analizar Partido", type="primary"):
+            if st.button("Analizar Partido", type="primary"):
                 if loc == vis:
                     st.warning("Selecciona equipos diferentes.")
                 else:
