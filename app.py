@@ -149,7 +149,6 @@ else:
 
         liga_seleccionada = st.selectbox("Selecciona el torneo:", list(ligas.keys()))
 
-        # Cambio de nombre del botón a Importar
         if st.button("📥 Importar Datos y Entrenar IA"):
             with st.spinner("Extrayendo estadísticas y entrenando modelo Sklearn..."):
                 try:
@@ -204,7 +203,6 @@ else:
                     ml_model = LogisticRegression(class_weight='balanced')
                     ml_model.fit(X_train_scaled, y_train)
 
-                    # Guardar modelo en sesión
                     st.session_state.model_data = {
                         "df": df, "raw": raw, "scaler": scaler, 
                         "ml_model": ml_model, "equipos": equipos_lista, "liga": liga_seleccionada
@@ -213,7 +211,6 @@ else:
                 except Exception as e:
                     st.error(f"Error procesando datos: {e}")
 
-        # Si el modelo ya está entrenado, mostramos los selectores de equipos
         if st.session_state.model_data is not None:
             st.divider()
             st.subheader("Generar Pronóstico")
@@ -292,7 +289,6 @@ else:
                         over05, over15, over25, over35, over45, under25, under35, btts
                     )
 
-                    # Texto limpio para la base de datos (se mantiene igual para el registro)
                     salida_completa = f"""==============================
 {loc} vs {vis}
 ==============================
@@ -320,7 +316,6 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
 --- RECOMENDACIONES ---
 {recomendacion}
 """
-                    # GUARDAR EN SUPABASE AUTOMÁTICAMENTE
                     try:
                         supabase.table("historial_apuestas").insert({
                             "user_id": st.session_state.usuario_id,
@@ -332,7 +327,6 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
                     except Exception as e:
                         st.warning(f"Error guardando en historial: {e}")
 
-                    # --- NUEVO DISEÑO VISUAL PARA PANTALLA ---
                     st.success("¡Análisis completado y guardado en tu historial!")
                     st.markdown(f"### 🏟️ {loc} vs {vis}")
                     
@@ -369,12 +363,19 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
                         st.markdown(recomendacion)
 
     # ----------------------------------------
-    # PESTAÑA 2: EL HISTORIAL
+    # PESTAÑA 2: EL HISTORIAL (LÓGICA DE ELIMINAR AGREGADA)
     # ----------------------------------------
     with tab_hist:
         st.header("📜 Historial de Análisis")
-        if st.button("🔄 Refrescar Historial"):
-            st.rerun()
+        
+        # EL BOTÓN AHORA ELIMINA LOS REGISTROS EN SUPABASE
+        if st.button("🔄 Eliminar Historial y Refrescar"):
+            try:
+                supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
+                st.success("Historial eliminado correctamente.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al eliminar el historial: {e}")
 
         try:
             res = supabase.table("historial_apuestas").select("*").eq("user_id", st.session_state.usuario_id).order("fecha", desc=True).execute()
