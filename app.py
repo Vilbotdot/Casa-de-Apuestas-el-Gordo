@@ -119,6 +119,7 @@ if st.session_state.usuario_id is None:
     pantalla_login()
 else:
     # --- MENÚ LATERAL (SIDEBAR) ---
+    st.sidebar.image("image_6.jpg", use_container_width=True)
     st.sidebar.title("🎲 El Gordo Picks")
     st.sidebar.success("Sesión Activa")
     if st.sidebar.button("Cerrar Sesión"):
