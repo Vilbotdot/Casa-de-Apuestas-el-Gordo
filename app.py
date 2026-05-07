@@ -312,25 +312,23 @@ Local: {prob_local:.1f}% | Empate: {prob_empate:.1f}% | Visita: {prob_visita:.1f
                     with st.expander("💡 Recomendaciones", expanded=True):
                         st.markdown(recomendacion)
 
+
     with tab_hist:
         st.header("📜 Historial de Análisis")
         
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button("🔄 Refrescar"): st.rerun()
-        with c2:
-            # BOTÓN DE BORRADO DEFINITIVO
-            if st.button("🗑️ Borrar Todo el Historial", type="secondary"):
-                try:
-                    supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
-                    st.success("Historial eliminado.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al borrar: {e}")
+        # Un solo botón que borra en Supabase y luego recarga la pantalla
+        if st.button("🔄 Refrescar"): 
+            try:
+                supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al intentar limpiar el historial: {e}")
 
+        # Consulta para mostrar los datos (que estará vacía después de darle al botón)
         try:
             res = supabase.table("historial_apuestas").select("*").eq("user_id", st.session_state.usuario_id).order("fecha", desc=True).execute()
             datos = res.data
+            
             if not datos:
                 st.info("Sin registros.")
             else:
