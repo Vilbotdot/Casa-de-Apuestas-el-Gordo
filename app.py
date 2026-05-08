@@ -83,6 +83,63 @@ def generar_recomendacion(prob_local_ml, prob_empate_ml, prob_visita_ml, over05,
 
     return "\n".join(recomendaciones)
 
+@st.cache_resource(ttl=10800)
+def entrenar_modelo_liga(url, nombre_liga):
+    raw = pd.read_csv(url)
+    rename_map = {'HomeTeam': 'Home', 'AwayTeam': 'Away', 'FTHG': 'HG', 'FTAG': 'AG'}
+    raw = raw.rename(columns=rename_map)
+
+    if 'Season' in raw.columns:
+        ultima_temporada = raw['Season'].dropna().iloc[-1]
+        raw = raw[raw['Season'] == ultima_temporada]
+
+    raw = raw.dropna(subset=['Home', 'Away', 'HG', 'AG'])
+
+    equipos = {}
+    todos = pd.concat([raw['Home'], raw['Away']]).unique()
+
+    for equipo in todos:
+        partidos = raw[(raw['Home'] == equipo) | (raw['Away'] == equipo)].tail(12)
+        GF = 0; GA = 0; MP = 0; PTS = 0
+        for _, row in partidos.iterrows():
+            if row['Home'] == equipo:
+                gf = row['HG']; ga = row['AG']
+            else:
+                gf = row['AG']; ga = row['HG']
+            GF += gf; GA += ga; MP += 1
+            if gf > ga: PTS += 3
+            elif gf == ga: PTS += 1
+
+        elo = 1500 + (GF - GA) * 8 + PTS * 2
+        equipos[equipo] = {"Squad": equipo, "GF": GF, "GA": GA, "MP": max(MP, 1), "Elo": elo}
+
+    df = pd.DataFrame(list(equipos.values()))
+    equipos_lista = sorted(df['Squad'].unique())
+
+    X_train = []
+    y_train = []
+    for _, row in raw.iterrows():
+        if row['HG'] > row['AG']: y = 1
+        elif row['HG'] == row['AG']: y = 0
+        else: y = 2
+            
+        elo_h = equipos.get(row['Home'], {}).get('Elo', 1500)
+        elo_a = equipos.get(row['Away'], {}).get('Elo', 1500)
+        ventaja = (elo_h + 100) / max(elo_a, 1) 
+        X_train.append([1 / ventaja, ventaja])
+        y_train.append(y)
+
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    
+    ml_model = LogisticRegression(class_weight='balanced')
+    ml_model.fit(X_train_scaled, y_train)
+
+    return {
+        "df": df, "raw": raw, "scaler": scaler, 
+        "ml_model": ml_model, "equipos": equipos_lista, "liga": nombre_liga
+    }
+
 # ==========================================
 # 4. PANTALLA DE LOGIN
 # ==========================================
@@ -155,9 +212,11 @@ else:
             with st.spinner("Extrayendo estadísticas y entrenando modelo Sklearn..."):
                 try:
                     url = ligas[liga_seleccionada]
-                    raw = pd.read_csv(url)
-                    rename_map = {'HomeTeam': 'Home', 'AwayTeam': 'Away', 'FTHG': 'HG', 'FTAG': 'AG'}
-                    raw = raw.rename(columns=rename_map)
+                    # Llamamos a la función cacheada que pusimos arriba
+                    st.session_state.model_data = entrenar_modelo_liga(url, liga_seleccionada)
+                    st.success("¡Base de datos importada y modelo entrenado con éxito!")
+                except Exception as e:
+                    st.error(f"Error procesando datos: {e}")
 
                     if 'Season' in raw.columns:
                         ultima_temporada = raw['Season'].dropna().iloc[-1]
@@ -371,7 +430,7 @@ Ambos Equipos Anotan (BTTS): {btts:.1f}%
         st.header("📜 Historial de Análisis")
         
         # EL BOTÓN AHORA ELIMINA LOS REGISTROS EN SUPABASE
-        if st.button("🔄 Refrescar"):
+        if st.button("🔄 Eliminar historial"):
             try:
                 supabase.table("historial_apuestas").delete().eq("user_id", st.session_state.usuario_id).execute()
                 st.success("Historial eliminado correctamente.")
